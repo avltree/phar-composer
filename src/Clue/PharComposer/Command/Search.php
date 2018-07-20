@@ -3,24 +3,18 @@
 
 namespace Clue\PharComposer\Command;
 
-use Symfony\Component\Console\Formatter\OutputFormatterStyle;
-use Symfony\Component\Console\Helper\DialogHelper;
-use Symfony\Component\Console\Input\InputOption;
+use Symfony\Component\Console\Helper\QuestionHelper;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
-use Clue\PharComposer\Phar\PharComposer;
-use InvalidArgumentException;
-use UnexpectedValueException;
-use Symfony\Component\Console\Output\Output;
-use Symfony\Component\Process\Process;
-use Symfony\Component\Process\ExecutableFinder;
 use Packagist\Api\Client;
 use Packagist\Api\Result\Result;
 use Packagist\Api\Result\Package;
 use Packagist\Api\Result\Package\Version;
 use Clue\PharComposer\Phar\Packager;
+use Symfony\Component\Console\Question\ChoiceQuestion;
+use Symfony\Component\Console\Question\Question;
 
 class Search extends Command
 {
@@ -31,10 +25,10 @@ class Search extends Command
              ->addArgument('name', InputArgument::OPTIONAL, 'Project name or path', null);
     }
 
-    protected function select(OutputInterface $output, $label, array $choices, $abortable = null)
+    protected function select(InputInterface $input, OutputInterface $output, $label, array $choices, $abortable = null)
     {
-        $dialog = $this->getHelperSet()->get('dialog');
-        /* @var $dialog DialogHelper */
+        /* @var $dialog QuestionHelper */
+        $dialog = $this->getHelper('question');
 
         if (!$choices) {
             $output->writeln('<error>No matching packages found</error>');
@@ -43,18 +37,12 @@ class Search extends Command
 
         // TODO: skip dialog, if exact match
 
-        if ($abortable === true) {
-            $abortable = '<hl>Abort</hl>';
-        } elseif ($abortable === false) {
-            $abortable = null;
+        if ($abortable) {
+            array_unshift($choices, 'Abort');
         }
 
-        $select = array_merge(array(0 => $abortable), array_values($choices));
-        if ($abortable === null) {
-            unset($select[0]);
-        }
-
-        $index = $dialog->select($output, $label, $select);
+        $question = new ChoiceQuestion($label, array_values($choices), 0);
+        $index = $dialog->ask($input, $output, $question);
 
         if ($index == 0) {
             return null;
@@ -70,15 +58,15 @@ class Search extends Command
         $packager->setOutput($output);
         $packager->coerceWritable();
 
-        $dialog = $this->getHelperSet()->get('dialog');
-        /* @var $dialog DialogHelper */
+        $dialog = $this->getHelper('question');
+        /* @var $dialog QuestionHelper */
 
         $name = $input->getArgument('name');
 
         do {
             if ($name === null) {
                 // ask for input
-                $name = $dialog->ask($output, 'Enter (partial) project name > ');
+                $name = $dialog->ask($input, $output, new Question('Enter (partial) project name > '));
             } else {
                 $output->writeln('Searching for <info>' . $name . '</info>...');
             }
@@ -98,7 +86,7 @@ class Search extends Command
                 $choices[$package->getName()] = $label;
             }
 
-            $name = $this->select($output, 'Select matching package', $choices, 'Start new search');
+            $name = $this->select($input, $output, 'Select matching package', $choices, 'Start new search');
         } while ($name === null);
 
         $output->writeln('Selected <info>' . $name . '</info>, listing versions...');
@@ -122,9 +110,10 @@ class Search extends Command
             $choices[$version->getVersion()] = $label;
         }
 
-        $version = $this->select($output, 'Select available version', $choices);
+        $version = $this->select($input, $output, 'Select available version', $choices);
 
         $action = $this->select(
+            $input,
             $output,
             'Action',
             array(
@@ -138,10 +127,7 @@ class Search extends Command
             return;
         }
 
-
-
         $pharer = $packager->getPharer($name, $version);
-
 
         if ($action === 'install') {
             $path = $packager->getSystemBin($pharer);
