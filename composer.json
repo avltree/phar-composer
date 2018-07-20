@@ -12,9 +12,9 @@
     ],
     "require": {
         "herrera-io/box": "~1.5",
-        "symfony/console": "~4.0",
-        "symfony/finder": "~4.0",
-        "symfony/process": "~4.0",
+        "symfony/console": "~2.1|~3.0|~4.0",
+        "symfony/finder": "~2.1|~3.0|~4.0",
+        "symfony/process": "~2.1|~3.0|~4.0",
         "knplabs/packagist-api": "~1.0"
     },
     "autoload": {
